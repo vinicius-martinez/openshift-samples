@@ -1,0 +1,85 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: cronjob-scale-deployment
+  annotations:
+    description: Scheduled Task to Scale Application of a given DeploymentConfig
+    iconClass: icon-shadowman
+    tags: management,cronjob,scale,builds,deployments
+objects:
+- apiVersion: batch/v2alpha1
+  kind: CronJob
+  metadata:
+    name: "${JOB_NAME}"
+  spec:
+    schedule: "${SCHEDULE}"
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: "${{SUCCESS_JOBS_HISTORY_LIMIT}}"
+    failedJobsHistoryLimit: "${{FAILED_JOBS_HISTORY_LIMIT}}"
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: "${JOB_NAME}"
+              image: openshift3/jenkins-slave-base-rhel7
+              command:
+              - "/bin/bash"
+              - "-c"
+              - oc scale --replicas=$REPLICA_COUNT dc $DEPLOYMENT_CONFIG
+              env:
+              - name: REPLICA_COUNT
+                value: "${REPLICA_COUNT}"
+              - name: DEPLOYMENT_CONFIG
+                value: "${DEPLOYMENT_CONFIG}"
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 30
+            activeDeadlineSeconds: 500
+            dnsPolicy: ClusterFirst
+            serviceAccountName: "${JOB_SERVICE_ACCOUNT}"
+            serviceAccount: "${JOB_SERVICE_ACCOUNT}"
+- kind: ServiceAccount
+  apiVersion: v1
+  metadata:
+    name: ${JOB_SERVICE_ACCOUNT}
+    labels:
+      template: "cronjob-scale-deployments"
+parameters:
+- name: JOB_NAME
+  displayName: Job Name
+  description: Name of the Scheduled Job to Create.
+  value: cronjob-scale-deployment
+  required: true
+- name: SCHEDULE
+  displayName: Cron Schedule
+  description: Cron Schedule to Execute the Job
+  value: '*/3 * * * *'
+  required: true
+- name: JOB_SERVICE_ACCOUNT
+  displayName: Service Account Name
+  description: Name of the Service Account To Execute the Job As.
+  value: scaler
+  required: true
+- name: DEPLOYMENT_CONFIG
+  displayName: Deployment Config Name
+  description: Name of the Deployment Config resource.
+  value: example
+  required: true
+- name: REPLICA_COUNT
+  displayName: Replica Count
+  description: Number of replicas that shall be using for scaling a given deployment.
+  value: '5'
+  required: true
+- name: SUCCESS_JOBS_HISTORY_LIMIT
+  displayName: Successful Job History Limit
+  description: The number of successful jobs that will be retained
+  value: '3'
+  required: true
+- name: FAILED_JOBS_HISTORY_LIMIT
+  displayName: Failed Job History Limit
+  description: The number of failed jobs that will be retained
+  value: '3'
+  required: true
+labels:
+  template: cronjob-scale-deployment
